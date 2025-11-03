@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -10,6 +12,10 @@ namespace PrintingTools.Core.Rendering;
 /// </summary>
 public static class PrintPageRenderer
 {
+    private static readonly MethodInfo? ImmediateRendererRenderMethod =
+        Type.GetType("Avalonia.Rendering.ImmediateRenderer, Avalonia.Base", throwOnError: false)
+            ?.GetMethod("Render", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(Visual), typeof(DrawingContext) }, null);
+
     /// <summary>
     /// Renders the supplied page to the provided drawing context using the supplied metrics.
     /// </summary>
@@ -32,7 +38,14 @@ public static class PrintPageRenderer
         using (drawingContext.PushTransform(Matrix.CreateTranslation(-metrics.ContentOffset.X, -metrics.ContentOffset.Y)))
         using (drawingContext.PushTransform(Matrix.CreateTranslation(-metrics.VisualBounds.X, -metrics.VisualBounds.Y)))
         {
-            RenderVisualTree(drawingContext, page.Visual);
+            if (ImmediateRendererRenderMethod is { } method)
+            {
+                method.Invoke(null, new object[] { page.Visual, drawingContext });
+            }
+            else
+            {
+                RenderVisualTree(drawingContext, page.Visual);
+            }
         }
     }
 
