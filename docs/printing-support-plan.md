@@ -84,7 +84,8 @@
     - Added `PrintingTools_RunVectorPreview`, allowing managed vector bytes to drive AppKit preview without bitmap blitting.
 10.4. [x] Replace the managed preview bitmap overlay with the vector renderer once parity is validated, keeping the margin diagnostics as optional overlays.
     - Managed preview now renders via `PrintPageVectorView`, reusing the shared renderer for on-screen display while still providing the optional margin overlay; vector bytes are available for native preview launch when desired.
-10.5. [ ] Leverage Avalonia’s MSBuild friend access (`ExternalConsumers.props`) to call required internals (`ImmediateRenderer`, scene graph helpers) so work can proceed without waiting on upstream API exposure.
+10.5. [x] Leverage Avalonia’s MSBuild friend access (`ExternalConsumers.props`) to call required internals (`ImmediateRenderer`, scene graph helpers) so work can proceed without waiting on upstream API exposure.
+    - `ExternalConsumers.props` now whitelists `PrintingTools.UI`, and `PrintPageRenderer` falls back to the public traversal but invokes `ImmediateRenderer` when internals are exposed, enabling the vector pipeline to reuse Avalonia’s internal drawing routines immediately.
 
 ---
 
