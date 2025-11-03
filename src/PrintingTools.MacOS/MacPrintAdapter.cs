@@ -35,6 +35,18 @@ public sealed class MacPrintAdapter : IPrintAdapter
     private const int PixelFormatRgba8888 = 1;
     private static readonly bool EnableRenderDiagnostics =
         string.Equals(Environment.GetEnvironmentVariable("PRINTINGTOOLS_TRACE_RENDER"), "1", StringComparison.OrdinalIgnoreCase);
+    private const string DiagnosticsCategory = "MacPrintAdapter";
+
+    private static void EmitDiagnostic(string message, Exception? exception = null, object? context = null) =>
+        PrintDiagnostics.Report(DiagnosticsCategory, message, exception, context);
+
+    private static void EmitTrace(string message, object? context = null)
+    {
+        if (EnableRenderDiagnostics)
+        {
+            PrintDiagnostics.Report($"{DiagnosticsCategory}.Trace", message, null, context);
+        }
+    }
 
     public async Task PrintAsync(PrintSession session, CancellationToken cancellationToken = default)
     {
@@ -43,11 +55,20 @@ public sealed class MacPrintAdapter : IPrintAdapter
 
         var pages = CollectPages(session, cancellationToken, TargetPrintDpi);
 
-        Console.WriteLine($"[PrintingTools] CollectPages -> {pages.Count} pages for session '{session.Description}'.");
+        EmitDiagnostic(
+            $"CollectPages -> {pages.Count} pages for session '{session.Description ?? string.Empty}'.",
+            context: new { session.Description, PageCount = pages.Count });
         for (var i = 0; i < pages.Count; i++)
         {
             var tag = (pages[i].Visual as Control)?.Tag ?? "<null>";
-            Console.WriteLine($"[PrintingTools] Page[{i}] tag={tag} metricsOffset={pages[i].Metrics?.ContentOffset}");
+            EmitTrace(
+                $"Page[{i}] details",
+                new
+                {
+                    Index = i,
+                    Tag = tag,
+                    pages[i].Metrics?.ContentOffset
+                });
         }
 
         if (session.Options.UseManagedPdfExporter)
@@ -382,7 +403,13 @@ public sealed class MacPrintAdapter : IPrintAdapter
 
         var page = printContext.Pages[(int)pageIndex];
         var controlTag = (page.Visual as Control)?.Tag ?? "<null>";
-        Console.WriteLine($"[PrintingTools] RenderPage index={pageIndex} tag={controlTag}");
+        EmitTrace(
+            $"RenderPage index={pageIndex}",
+            new
+            {
+                PageIndex = pageIndex,
+                Tag = controlTag
+            });
 #if DEBUG
         var metrics = page.Metrics;
         System.Diagnostics.Debug.WriteLine($"[PrintingTools] RenderPage index={pageIndex} offset={metrics?.ContentOffset ?? new Avalonia.Point()} visualBounds={metrics?.VisualBounds}");
@@ -414,9 +441,17 @@ public sealed class MacPrintAdapter : IPrintAdapter
             using var renderTarget = RenderPageBitmap(page, metrics);
             return TryBlitToContext(renderTarget, metrics, cgContext);
         }
-        catch
+        catch (Exception ex)
         {
-            // TODO: integrate structured logging once tracing pipeline is available.
+            EmitDiagnostic(
+                "RenderPageToContext failed.",
+                ex,
+                new
+                {
+                    VisualTag = (page.Visual as Control)?.Tag,
+                    Metrics = page.Metrics,
+                    TargetDpi = TargetPrintDpi
+                });
             return false;
         }
     }

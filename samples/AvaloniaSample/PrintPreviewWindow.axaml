@@ -22,6 +22,14 @@
                            Width="120"
                            Maximum="{Binding PageCount}"
                            Value="{Binding SelectedPageNumber, Mode=TwoWay}"/>
+            <TextBlock Text="Printer" VerticalAlignment="Center" Margin="24,0,4,0"/>
+            <ComboBox Width="200"
+                      ItemsSource="{Binding Printers}"
+                      SelectedItem="{Binding SelectedPrinter, Mode=TwoWay}"
+                      IsEnabled="{Binding HasPrinters}"/>
+            <Button Content="Refresh" Click="OnRefreshPrintersClicked"/>
+            <Button Content="Print" Click="OnPrintClicked" IsEnabled="{Binding HasPrinters}"/>
+            <Button Content="Export PDF" Click="OnExportClicked"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12" Margin="16,0,16,12">
@@ -55,14 +63,25 @@
                                 <ScaleTransform ScaleX="{Binding ElementName=ZoomSlider, Path=Value}"
                                                 ScaleY="{Binding ElementName=ZoomSlider, Path=Value}"/>
                             </LayoutTransformControl.LayoutTransform>
-                            <Border Background="#FFF" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="8">
+                            <Grid Width="{Binding PageSize.Width}" Height="{Binding PageSize.Height}">
+                                <Border Background="#FFF" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6"/>
                                 <Image Source="{Binding Image}"
-                                       Stretch="Uniform"
-                                       StretchDirection="DownOnly"
-                                       Width="320"/>
-                            </Border>
+                                       Stretch="Fill"
+                                       HorizontalAlignment="Stretch"
+                                       VerticalAlignment="Stretch"/>
+                                <Border BorderBrush="#4CAF50"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Margin="{Binding PrintableMargins}"
+                                        IsHitTestVisible="False"/>
+                            </Grid>
                         </LayoutTransformControl>
                         <TextBlock Text="{Binding Number, StringFormat='Page {0}'}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding Summary}"
+                                   FontSize="12"
+                                   Foreground="#666"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>

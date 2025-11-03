@@ -1,4 +1,5 @@
 #import <AppKit/AppKit.h>
+#include <stdlib.h>
 
 @class PrintingToolsOperationHost;
 
@@ -46,6 +47,12 @@ typedef struct
     int pageCount;
 } PrintingToolsManagedPrintSettings;
 
+typedef struct
+{
+    const unichar** names;
+    int* lengths;
+    int count;
+} PrintingToolsStringArray;
 
 @interface PrintingToolsOperationHost : NSObject
 @property (nonatomic, assign) void* managedContext;
@@ -566,4 +573,93 @@ void PrintingTools_DrawBitmap(
     CGContextRestoreGState(context);
 
     CGImageRelease(image);
+}
+
+PrintingToolsStringArray PrintingTools_GetPrinterNames(void)
+{
+    PrintingToolsStringArray result;
+    result.names = NULL;
+    result.lengths = NULL;
+    result.count = 0;
+
+    @autoreleasepool
+    {
+        NSArray<NSString*>* printers = [NSPrinter printerNames];
+        NSInteger count = printers.count;
+        if (count <= 0)
+        {
+            return result;
+        }
+
+        const unichar** names = (const unichar**)calloc((size_t)count, sizeof(unichar*));
+        int* lengths = (int*)calloc((size_t)count, sizeof(int));
+        if (names == NULL || lengths == NULL)
+        {
+            if (names != NULL)
+            {
+                free((void*)names);
+            }
+            if (lengths != NULL)
+            {
+                free((void*)lengths);
+            }
+            return result;
+        }
+
+        for (NSInteger i = 0; i < count; i++)
+        {
+            NSString* name = printers[i];
+            if (name == nil)
+            {
+                names[i] = NULL;
+                lengths[i] = 0;
+                continue;
+            }
+
+            NSUInteger length = name.length;
+            lengths[i] = (int)length;
+            if (length == 0)
+            {
+                names[i] = NULL;
+                continue;
+            }
+
+            unichar* buffer = (unichar*)malloc(sizeof(unichar) * length);
+            if (buffer == NULL)
+            {
+                names[i] = NULL;
+                lengths[i] = 0;
+                continue;
+            }
+
+            [name getCharacters:buffer range:NSMakeRange(0, length)];
+            names[i] = buffer;
+        }
+
+        result.names = names;
+        result.lengths = lengths;
+        result.count = (int)count;
+    }
+
+    return result;
+}
+
+void PrintingTools_FreePrinterNames(PrintingToolsStringArray array)
+{
+    if (array.names != NULL)
+    {
+        for (int i = 0; i < array.count; i++)
+        {
+            if (array.names[i] != NULL)
+            {
+                free((void*)array.names[i]);
+            }
+        }
+        free((void*)array.names);
+    }
+
+    if (array.lengths != NULL)
+    {
+        free((void*)array.lengths);
+    }
 }

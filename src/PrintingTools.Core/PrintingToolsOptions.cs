@@ -8,10 +8,13 @@ public sealed class PrintingToolsOptions
 
     public Func<IPrintAdapter>? AdapterFactory { get; set; }
 
+    public Action<PrintDiagnosticEvent>? DiagnosticSink { get; set; }
+
     public PrintingToolsOptions Clone() =>
         new()
         {
             EnablePreview = EnablePreview,
-            AdapterFactory = AdapterFactory
+            AdapterFactory = AdapterFactory,
+            DiagnosticSink = DiagnosticSink
         };
 }

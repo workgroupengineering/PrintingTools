@@ -76,4 +76,19 @@ public partial class PrintPreviewWindow : Window
 
     private void OnNextPageClicked(object? sender, RoutedEventArgs e) =>
         _viewModel?.GoToNextPage();
+
+    private void OnPrintClicked(object? sender, RoutedEventArgs e)
+    {
+        _viewModel?.RequestAction(PreviewAction.Print);
+        Close();
+    }
+
+    private void OnExportClicked(object? sender, RoutedEventArgs e)
+    {
+        _viewModel?.RequestAction(PreviewAction.ExportPdf);
+        Close();
+    }
+
+    private void OnRefreshPrintersClicked(object? sender, RoutedEventArgs e) =>
+        _viewModel?.RequestAction(PreviewAction.RefreshPrinters);
 }

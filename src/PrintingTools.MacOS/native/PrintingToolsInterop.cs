@@ -43,6 +43,12 @@ internal static class PrintingToolsInterop
         double destHeight,
         int pixelFormat);
 
+    [DllImport(LibraryName, EntryPoint = "PrintingTools_GetPrinterNames")]
+    public static extern StringArray GetPrinterNames();
+
+    [DllImport(LibraryName, EntryPoint = "PrintingTools_FreePrinterNames")]
+    public static extern void FreePrinterNames(StringArray array);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct PrintSettings
     {
@@ -104,5 +110,13 @@ internal static class PrintingToolsInterop
                 Marshal.FreeHGlobal(ptr);
             }
         }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StringArray
+    {
+        public IntPtr Items;
+        public IntPtr Lengths;
+        public int Count;
     }
 }

@@ -16,16 +16,22 @@ namespace AvaloniaSample;
 public partial class MainWindow : Window
 {
     private readonly MacPrintAdapterFactory _adapterFactory = new();
+    private readonly Action<PrintDiagnosticEvent> _diagnosticSink;
+    private readonly List<string> _printers = new();
     private PrintPreviewModel? _currentPreview;
     private bool _isRendering;
+    private string? _selectedPrinter;
 
     public MainWindow()
     {
         InitializeComponent();
+        _diagnosticSink = OnDiagnostic;
+        PrintDiagnostics.RegisterSink(_diagnosticSink);
 
         if (_adapterFactory.IsSupported)
         {
             StatusText.Text = "Ready to render sample pages.";
+            RefreshPrinters();
         }
         else
         {
@@ -39,6 +45,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        PrintDiagnostics.UnregisterSink(_diagnosticSink);
         DisposePreview();
     }
 
@@ -71,13 +78,28 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var session = BuildSampleSession();
+            var session = BuildSampleSession(options =>
+            {
+                if (!string.IsNullOrWhiteSpace(_selectedPrinter))
+                {
+                    options.PrinterName = _selectedPrinter;
+                }
+            });
             var preview = await adapter.CreatePreviewAsync(session);
             _currentPreview = preview;
 
             var viewModel = new PrintPreviewViewModel(preview.Pages, preview.Images);
+            viewModel.ActionRequested += OnPreviewActionRequested;
+            viewModel.LoadPrinters(_printers);
+            if (!string.IsNullOrWhiteSpace(_selectedPrinter))
+            {
+                viewModel.SelectedPrinter = _selectedPrinter;
+            }
+
             var window = new PrintPreviewWindow(viewModel);
             await window.ShowDialog(this);
+            viewModel.ActionRequested -= OnPreviewActionRequested;
+            _selectedPrinter = viewModel.SelectedPrinter;
             StatusText.Text = "Preview closed.";
         }
         catch (Exception ex)
@@ -127,6 +149,10 @@ public partial class MainWindow : Window
             session.Options.ShowPrintDialog = true;
             session.Options.UseManagedPdfExporter = true;
             session.Options.PdfOutputPath = null;
+            if (!string.IsNullOrWhiteSpace(_selectedPrinter))
+            {
+                session.Options.PrinterName = _selectedPrinter;
+            }
 
             await adapter.PrintAsync(session);
 
@@ -145,59 +171,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void OnExportPdfClicked(object? sender, RoutedEventArgs e)
-    {
-        if (_isRendering)
-        {
-            return;
-        }
+    private async void OnExportPdfClicked(object? sender, RoutedEventArgs e) =>
+        await ExecutePdfExportAsync(_selectedPrinter);
 
-        if (!_adapterFactory.IsSupported)
-        {
-            StatusText.Text = "macOS adapter is unavailable.";
-            return;
-        }
-
-        _isRendering = true;
-        PreviewButton.IsEnabled = false;
-        ExportPdfButton.IsEnabled = false;
-        StatusText.Text = "Exporting PDF…";
-
-        try
-        {
-            DisposePreview();
-
-            var adapter = _adapterFactory.CreateAdapter();
-            if (adapter is null)
-            {
-                StatusText.Text = "macOS adapter could not be created.";
-                return;
-            }
-
-            var session = BuildSampleSession();
-            var pdfPath = GetPdfDestination();
-            session.Options.PdfOutputPath = pdfPath;
-            session.Options.ShowPrintDialog = false;
-            session.Options.UseManagedPdfExporter = true;
-
-            await adapter.PrintAsync(session);
-
-            StatusText.Text = $"PDF exported to {pdfPath}";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"PDF export failed: {ex.Message}";
-        }
-        finally
-        {
-            PreviewButton.IsEnabled = _adapterFactory.IsSupported;
-            NativePreviewButton.IsEnabled = _adapterFactory.IsSupported;
-            ExportPdfButton.IsEnabled = _adapterFactory.IsSupported;
-            _isRendering = false;
-        }
-    }
-
-    private PrintSession BuildSampleSession()
+    private PrintSession BuildSampleSession(Action<PrintOptions>? configureOptions = null)
     {
         var builder = new PrintSessionBuilder();
 
@@ -211,6 +188,7 @@ public partial class MainWindow : Window
         {
             options.ShowPrintDialog = false;
             options.CollectPreviewFirst = true;
+            configureOptions?.Invoke(options);
         });
 
         return builder.Build("Quarterly Report");
@@ -387,5 +365,187 @@ public partial class MainWindow : Window
         var baseDirectory = string.IsNullOrWhiteSpace(desktop) ? fallback : desktop;
         var fileName = $"AvaloniaSample-Print-{DateTime.Now:yyyyMMdd-HHmmss}.pdf";
         return Path.Combine(baseDirectory, fileName);
+    }
+
+    private void OnDiagnostic(PrintDiagnosticEvent diagnostic)
+    {
+        var message = $"[{diagnostic.Timestamp:O}] {diagnostic.Category}: {diagnostic.Message}";
+        Console.WriteLine(message);
+
+        if (diagnostic.Exception is { } exception)
+        {
+            Console.WriteLine(exception);
+        }
+    }
+
+    private void RefreshPrinters()
+    {
+        _printers.Clear();
+
+        try
+        {
+            var printers = MacPrinterCatalog.GetInstalledPrinters();
+            _printers.AddRange(printers);
+            if (_printers.Count > 0 && string.IsNullOrWhiteSpace(_selectedPrinter))
+            {
+                _selectedPrinter = _printers[0];
+            }
+
+            StatusText.Text = _printers.Count switch
+            {
+                0 => "No printers detected.",
+                1 => $"Detected {_printers.Count} printer.",
+                _ => $"Detected {_printers.Count} printers."
+            };
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Printer refresh failed: {ex.Message}";
+        }
+    }
+
+    private async void OnPreviewActionRequested(object? sender, PreviewActionEventArgs e)
+    {
+        if (sender is not PrintPreviewViewModel viewModel)
+        {
+            return;
+        }
+
+        switch (e.Action)
+        {
+            case PreviewAction.Print:
+                _selectedPrinter = viewModel.SelectedPrinter;
+                await ExecutePhysicalPrintAsync(_selectedPrinter);
+                break;
+            case PreviewAction.ExportPdf:
+                _selectedPrinter = viewModel.SelectedPrinter;
+                await ExecutePdfExportAsync(_selectedPrinter);
+                break;
+            case PreviewAction.RefreshPrinters:
+                RefreshPrinters();
+                viewModel.LoadPrinters(_printers);
+                if (!string.IsNullOrWhiteSpace(_selectedPrinter))
+                {
+                    viewModel.SelectedPrinter = _selectedPrinter;
+                }
+                break;
+        }
+    }
+
+    private async Task ExecutePhysicalPrintAsync(string? printerName)
+    {
+        if (_isRendering)
+        {
+            StatusText.Text = "Another print job is already running.";
+            return;
+        }
+
+        if (!_adapterFactory.IsSupported)
+        {
+            StatusText.Text = "macOS adapter is unavailable.";
+            return;
+        }
+
+        _isRendering = true;
+        PreviewButton.IsEnabled = false;
+        NativePreviewButton.IsEnabled = false;
+        ExportPdfButton.IsEnabled = false;
+        StatusText.Text = "Sending print job…";
+
+        try
+        {
+            DisposePreview();
+            var adapter = _adapterFactory.CreateAdapter();
+            if (adapter is null)
+            {
+                StatusText.Text = "macOS adapter could not be created.";
+                return;
+            }
+
+            var session = BuildSampleSession(options =>
+            {
+                options.ShowPrintDialog = true;
+                options.CollectPreviewFirst = false;
+                options.UseManagedPdfExporter = false;
+                options.PdfOutputPath = null;
+                if (!string.IsNullOrWhiteSpace(printerName))
+                {
+                    options.PrinterName = printerName;
+                }
+            });
+
+            await adapter.PrintAsync(session);
+            StatusText.Text = "Print job submitted.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Print failed: {ex.Message}";
+        }
+        finally
+        {
+            _isRendering = false;
+            PreviewButton.IsEnabled = _adapterFactory.IsSupported;
+            NativePreviewButton.IsEnabled = _adapterFactory.IsSupported;
+            ExportPdfButton.IsEnabled = _adapterFactory.IsSupported;
+        }
+    }
+
+    private async Task ExecutePdfExportAsync(string? printerName)
+    {
+        if (_isRendering)
+        {
+            StatusText.Text = "Another operation is already running.";
+            return;
+        }
+
+        if (!_adapterFactory.IsSupported)
+        {
+            StatusText.Text = "macOS adapter is unavailable.";
+            return;
+        }
+
+        _isRendering = true;
+        PreviewButton.IsEnabled = false;
+        NativePreviewButton.IsEnabled = false;
+        ExportPdfButton.IsEnabled = false;
+        StatusText.Text = "Exporting PDF…";
+
+        try
+        {
+            DisposePreview();
+            var adapter = _adapterFactory.CreateAdapter();
+            if (adapter is null)
+            {
+                StatusText.Text = "macOS adapter could not be created.";
+                return;
+            }
+
+            var pdfPath = GetPdfDestination();
+            var session = BuildSampleSession(options =>
+            {
+                options.ShowPrintDialog = false;
+                options.CollectPreviewFirst = false;
+                options.UseManagedPdfExporter = true;
+                options.PdfOutputPath = pdfPath;
+                if (!string.IsNullOrWhiteSpace(printerName))
+                {
+                    options.PrinterName = printerName;
+                }
+            });
+
+            await adapter.PrintAsync(session);
+            StatusText.Text = $"PDF exported to {pdfPath}";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"PDF export failed: {ex.Message}";
+        }
+        finally
+        {
+            _isRendering = false;
+            PreviewButton.IsEnabled = _adapterFactory.IsSupported;
+            NativePreviewButton.IsEnabled = _adapterFactory.IsSupported;
+            ExportPdfButton.IsEnabled = _adapterFactory.IsSupported;
+        }
     }
 }

@@ -8,6 +8,7 @@ public static class PrintServiceRegistry
     private static PrintingToolsOptions _options = new();
     private static IPrintAdapterResolver? _resolver;
     private static IPrintManager? _manager;
+    private static Action<PrintDiagnosticEvent>? _diagnosticSubscription;
 
     public static PrintingToolsOptions Options
     {
@@ -26,9 +27,21 @@ public static class PrintServiceRegistry
 
         lock (Sync)
         {
+            if (_diagnosticSubscription is not null)
+            {
+                PrintDiagnostics.UnregisterSink(_diagnosticSubscription);
+                _diagnosticSubscription = null;
+            }
+
             _options = options.Clone();
             _resolver = null;
             _manager = null;
+
+            if (_options.DiagnosticSink is { } sink)
+            {
+                PrintDiagnostics.RegisterSink(sink);
+                _diagnosticSubscription = sink;
+            }
         }
     }
 

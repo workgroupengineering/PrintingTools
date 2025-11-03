@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Avalonia.Media.Imaging;
@@ -14,13 +15,15 @@ public sealed class PrintPreviewViewModel : INotifyPropertyChanged
     {
         Pages = new ObservableCollection<PreviewPageViewModel>();
         Pages.CollectionChanged += (_, __) => OnPropertyChanged(nameof(PageCount));
+        Printers = new ObservableCollection<string>();
+        Printers.CollectionChanged += OnPrintersChanged;
     }
 
     public PrintPreviewViewModel(IReadOnlyList<PrintPage> pages, IReadOnlyList<RenderTargetBitmap> images) : this()
     {
         for (var i = 0; i < pages.Count && i < images.Count; i++)
         {
-            Pages.Add(new PreviewPageViewModel(i + 1, images[i]));
+            Pages.Add(new PreviewPageViewModel(i + 1, pages[i], images[i]));
         }
 
         if (Pages.Count > 0)
@@ -33,6 +36,17 @@ public sealed class PrintPreviewViewModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<PreviewPageViewModel> Pages { get; }
+
+    public ObservableCollection<string> Printers { get; }
+
+    private string? _selectedPrinter;
+    public string? SelectedPrinter
+    {
+        get => _selectedPrinter;
+        set => SetProperty(ref _selectedPrinter, value);
+    }
+
+    public bool HasPrinters => Printers.Count > 0;
 
     private double _zoom = 1.0;
     public double Zoom
@@ -77,6 +91,8 @@ public sealed class PrintPreviewViewModel : INotifyPropertyChanged
 
     public int PageCount => Pages.Count;
 
+    public event EventHandler<PreviewActionEventArgs>? ActionRequested;
+
     public void GoToNextPage()
     {
         if (Pages.Count == 0)
@@ -103,6 +119,27 @@ public sealed class PrintPreviewViewModel : INotifyPropertyChanged
         }
     }
 
+    public void LoadPrinters(IEnumerable<string> printers)
+    {
+        Printers.CollectionChanged -= OnPrintersChanged;
+        Printers.Clear();
+        foreach (var printer in printers)
+        {
+            Printers.Add(printer);
+        }
+        Printers.CollectionChanged += OnPrintersChanged;
+
+        if (string.IsNullOrWhiteSpace(SelectedPrinter) && Printers.Count > 0)
+        {
+            SelectedPrinter = Printers[0];
+        }
+
+        OnPropertyChanged(nameof(HasPrinters));
+    }
+
+    public void RequestAction(PreviewAction action) =>
+        ActionRequested?.Invoke(this, new PreviewActionEventArgs(action));
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string? propertyName = null)
@@ -119,4 +156,7 @@ public sealed class PrintPreviewViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+        OnPropertyChanged(nameof(HasPrinters));
 }

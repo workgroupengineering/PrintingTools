@@ -19,6 +19,8 @@
 - `PrintPaginationUtilities.ExpandPage` now slices tall visuals into multiple `PrintPage` instances using `ContentOffset`, and `MacPrintAdapter` consumes the expanded list (with PDF export reusing the same path). Additional work remains for horizontal flow/columns and richer diagnostics.
 - `SkiaPdfExporter` prototype renders visuals directly to Skia PDF documents when managed export is requested, exercising the vector pipeline.
 - Preview UI consumes the cached bitmaps with zoom + paging, demonstrating virtualization over the expanded page set.
+- Preview overlay now uses the same page metrics as the macOS print path, drawing printable margins so discrepancies are visible before running native preview.
+- Diagnostics pipeline (`PrintDiagnostics`) now surfaces render/exception events from the macOS adapter and Skia exporter, enabling host applications to observe print fidelity issues without attaching debuggers.
 
 4. [ ] Preview Integration
    - Feed paginated pages into the upcoming Avalonia preview controls with virtualization and zoom.

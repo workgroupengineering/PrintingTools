@@ -13,6 +13,7 @@ internal static class SkiaPdfExporter
 {
     private const double DipsPerInch = 96d;
     private const double PointsPerInch = 72d;
+    private const string DiagnosticsCategory = "SkiaPdfExporter";
 
     public static void Export(string path, IReadOnlyList<PrintPage> pages)
     {
@@ -26,6 +27,11 @@ internal static class SkiaPdfExporter
         {
             Directory.CreateDirectory(directory);
         }
+
+        PrintDiagnostics.Report(
+            DiagnosticsCategory,
+            $"Exporting managed PDF to '{path}'.",
+            context: new { PageCount = pages.Count });
 
         using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.Read);
         using var document = SKDocument.CreatePdf(stream) ?? throw new InvalidOperationException("Unable to create PDF document via Skia.");
@@ -51,7 +57,10 @@ internal static class SkiaPdfExporter
             for (var i = 0; i < pages.Count; i++)
             {
                 var tag = (pages[i].Visual as Control)?.Tag;
-                Console.WriteLine($"[PrintingTools] PDF Render page[{i}] tag={tag}");
+                PrintDiagnostics.Report(
+                    DiagnosticsCategory,
+                    $"Rendering PDF page {i}",
+                    context: new { Index = i, Tag = tag });
                 RenderPage(document, pages[i]);
             }
 
