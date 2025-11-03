@@ -1,0 +1,122 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using Avalonia.Media.Imaging;
+using PrintingTools.Core;
+
+namespace AvaloniaSample.ViewModels;
+
+public sealed class PrintPreviewViewModel : INotifyPropertyChanged
+{
+    public PrintPreviewViewModel()
+    {
+        Pages = new ObservableCollection<PreviewPageViewModel>();
+        Pages.CollectionChanged += (_, __) => OnPropertyChanged(nameof(PageCount));
+    }
+
+    public PrintPreviewViewModel(IReadOnlyList<PrintPage> pages, IReadOnlyList<RenderTargetBitmap> images) : this()
+    {
+        for (var i = 0; i < pages.Count && i < images.Count; i++)
+        {
+            Pages.Add(new PreviewPageViewModel(i + 1, images[i]));
+        }
+
+        if (Pages.Count > 0)
+        {
+            SelectedPage = Pages[0];
+            SelectedPageNumber = 1;
+        }
+
+        OnPropertyChanged(nameof(PageCount));
+    }
+
+    public ObservableCollection<PreviewPageViewModel> Pages { get; }
+
+    private double _zoom = 1.0;
+    public double Zoom
+    {
+        get => _zoom;
+        set => SetProperty(ref _zoom, Math.Clamp(value, 0.25, 4.0));
+    }
+
+    private PreviewPageViewModel? _selectedPage;
+    public PreviewPageViewModel? SelectedPage
+    {
+        get => _selectedPage;
+        set
+        {
+            if (SetProperty(ref _selectedPage, value) && value is not null)
+            {
+                var index = Pages.IndexOf(value);
+                if (index >= 0)
+                {
+                    SelectedPageNumber = index + 1;
+                }
+            }
+        }
+    }
+
+    private int _selectedPageNumber = 1;
+    public int SelectedPageNumber
+    {
+        get => _selectedPageNumber;
+        set
+        {
+            if (SetProperty(ref _selectedPageNumber, value))
+            {
+                var index = value - 1;
+                if (index >= 0 && index < Pages.Count)
+                {
+                    SelectedPage = Pages[index];
+                }
+            }
+        }
+    }
+
+    public int PageCount => Pages.Count;
+
+    public void GoToNextPage()
+    {
+        if (Pages.Count == 0)
+        {
+            return;
+        }
+
+        if (SelectedPageNumber < Pages.Count)
+        {
+            SelectedPageNumber += 1;
+        }
+    }
+
+    public void GoToPreviousPage()
+    {
+        if (Pages.Count == 0)
+        {
+            return;
+        }
+
+        if (SelectedPageNumber > 1)
+        {
+            SelectedPageNumber -= 1;
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private bool SetProperty<T>(ref T storage, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(storage, value))
+        {
+            return false;
+        }
+
+        storage = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}

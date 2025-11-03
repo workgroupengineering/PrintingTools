@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PrintingTools.Core\PrintingTools.Core.csproj" />
+    <PackageReference Include="Avalonia" GeneratePathProperty="true" />
+    <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="native/OSX/PrintingToolsMacBridge.mm" />
+    <None Include="native/OSX/build-native.sh" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="native/OSX/PrintingToolsMacBridge.dylib">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>runtimes/osx/native/PrintingToolsMacBridge.dylib</TargetPath>
+    </None>
+  </ItemGroup>
+
+  <Target Name="BuildNativeBridge" BeforeTargets="PrepareForBuild">
+    <Message Text="Building PrintingToolsMacBridge.dylib" Importance="High" />
+    <Exec Command="bash build-native.sh" WorkingDirectory="$(ProjectDir)native/OSX" />
+  </Target>
+
+  <ItemGroup>
+    <NativeLibrary Include="native/OSX/PrintingToolsMacBridge.dylib">
+      <DestinationSubDirectory>runtimes/osx/native/</DestinationSubDirectory>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </NativeLibrary>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <AvaloniaBuildTasksLocation Condition="'$(AvaloniaBuildTasksLocation)' == ''">$(PkgAvalonia)\tools\netstandard2.0\Avalonia.Build.Tasks.dll</AvaloniaBuildTasksLocation>
+  </PropertyGroup>
+
+</Project>

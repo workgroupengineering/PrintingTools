@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:AvaloniaSample.ViewModels"
+        x:Class="AvaloniaSample.PrintPreviewWindow"
+        Width="900" Height="720"
+        Title="Print Preview"
+        x:DataType="vm:PrintPreviewViewModel"
+        mc:Ignorable="d">
+    <Design.DataContext>
+        <vm:PrintPreviewViewModel />
+    </Design.DataContext>
+    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="*">
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="16">
+            <TextBlock Text="Preview Pages" FontSize="18"/>
+            <TextBlock Text="{Binding PageCount, StringFormat='({0})'}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+            <Button Content="Previous" Click="OnPreviousPageClicked" Margin="24,0,0,0"/>
+            <Button Content="Next" Click="OnNextPageClicked" Margin="8,0,0,0"/>
+            <TextBlock Text="Page" VerticalAlignment="Center" Margin="24,0,4,0"/>
+            <NumericUpDown Minimum="1"
+                           Width="120"
+                           Maximum="{Binding PageCount}"
+                           Value="{Binding SelectedPageNumber, Mode=TwoWay}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12" Margin="16,0,16,12">
+            <TextBlock Text="Zoom" VerticalAlignment="Center"/>
+            <Slider x:Name="ZoomSlider"
+                    Minimum="0.5"
+                    Maximum="2.5"
+                    SmallChange="0.1"
+                    LargeChange="0.25"
+                    Width="200"
+                    Value="{Binding Zoom, Mode=TwoWay}"/>
+            <TextBlock Text="{Binding Zoom, StringFormat='×{0:0.##}'}" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <ListBox x:Name="PagesList"
+                 Grid.Row="2"
+                 Margin="16"
+                 ItemsSource="{Binding Pages}"
+                 SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                >
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Orientation="Vertical" />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PreviewPageViewModel">
+                    <StackPanel Margin="8" Spacing="8" HorizontalAlignment="Center">
+                        <LayoutTransformControl>
+                            <LayoutTransformControl.LayoutTransform>
+                                <ScaleTransform ScaleX="{Binding ElementName=ZoomSlider, Path=Value}"
+                                                ScaleY="{Binding ElementName=ZoomSlider, Path=Value}"/>
+                            </LayoutTransformControl.LayoutTransform>
+                            <Border Background="#FFF" BorderBrush="#DDD" BorderThickness="1" CornerRadius="6" Padding="8">
+                                <Image Source="{Binding Image}"
+                                       Stretch="Uniform"
+                                       StretchDirection="DownOnly"
+                                       Width="320"/>
+                            </Border>
+                        </LayoutTransformControl>
+                        <TextBlock Text="{Binding Number, StringFormat='Page {0}'}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</Window>
